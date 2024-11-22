@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": ["monsters.txt", "output.txt"],
+      "cwd": "/Users/lukewiljanen/Documents/CPSC_COURSES_DOCKER/CPSC_350/Wiljanen_L_A5",
+      "program": "/Users/lukewiljanen/Documents/CPSC_COURSES_DOCKER/CPSC_350/Wiljanen_L_A5/build/Debug/outDebug"
+    }
+  ]
+}
