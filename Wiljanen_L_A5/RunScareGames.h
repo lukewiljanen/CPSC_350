@@ -20,11 +20,10 @@ output file
 
 class RunScareGames{
 private:
-    int m_numMonsters;  //number of monsters in the tournament
     TournamentTree<Monster>* m_tournamentTree;  //pointer to the tournament tree
     int m_tournamentFormat; //tournament format (1 for single elimination, 2 for double elimination)
 public:
-    RunScareGames(int numMonsters, int tournamentFormat);   //constructor takes in number of monsters and tournament format
+    RunScareGames(int tournamentFormat);   //constructor takes in number of monsters and tournament format
     ~RunScareGames();   //destructor
     void runTournament(std::string inputFile, std::string outputFile);  //runs the tournament, takes in input and output files
 };

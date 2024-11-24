@@ -18,6 +18,8 @@ playing matches, and managing the tournament tree.
 #include <iostream>
 #include <fstream>
 #include <queue>
+#include <cmath>
+
 
 
 template <typename T>
@@ -26,18 +28,19 @@ private:
     TournamentNode<T>* m_root;  // Root of the tournament tree
     void destroyTree(TournamentNode<T>* node);  //helper methods for deconstructor
     
-    
-    void insertHelper(TournamentNode<T>*& node, Monster* winner, int currDepth);   //helper method for insert
+    int m_size;
 
     void matchHelper(TournamentNode<T>* node);  //helper method for each match between monsters
-
+    int m_monstersAdded;
+    std::vector<Monster*> losingMonsters;   //vector of all losing monsters for losers bracket
+    std::vector<Monster*> monsterVector;    //vector of all monsters
+    
 public:
     int m_leafNodes;   //number of leaf nodes in the tournament tree
 
     TournamentTree();   //default constructor
-    void generateEmptyTree(int numLeafNodes);   //generates an empty tournament tree with given number of leaf nodes (competitors)
+    void generateTree(int numLeafNodes, std::vector<Monster*> v);   //generates an empty tournament tree with given number of leaf nodes (competitors)
     ~TournamentTree();  //destructor
-    void insert(Monster* winner);   //inserts a new competitor into the tournament tree at a leaf node
     void saveTreeAsDot(const std::string& filename, TournamentNode<T>* rootNode);   //saves the tournament tree as a .dot file
     void saveTreeAsDotHelper(TournamentNode<T>* rootNode, std::ofstream& file, int& nodeID);    //helper method for saveTreeAsDot
     void singleElimination(std::string inputFile, std::string outputFile);    //runs a single elimination tournament
@@ -75,50 +78,16 @@ void TournamentTree<T>::destroyTree(TournamentNode<T>* node){
 }
 
 /*
-Inserts a new competitor into the tournament tree at a leaf node using the insertHelper method
-takes in a monster pointer as a parameter
-*/
-template <typename T>
-void TournamentTree<T>::insert(Monster* winner){
-    insertHelper(m_root, winner, 0);
-}
-
-/*
-Helper method for insert that takes in a node pointer and a monster pointer as parameters
-fills in all of the leaf nodes of the tree with the given monster pointer
-*/
-template <typename T>
-void TournamentTree<T>::insertHelper(TournamentNode<T>*& node, Monster* winner, int currDepth){
-    if (node == NULL && currDepth == ((m_leafNodes / 2) - 1)){
-        node = new TournamentNode<T>(winner);
-        return;
-    }
-    if (node->m_left == NULL && currDepth + 1 == ((m_leafNodes / 2) - 1)){
-        node->m_left = new TournamentNode<T>(winner);
-    } else if (node->m_right == NULL && currDepth + 1 == ((m_leafNodes / 2) - 1)){
-        node->m_right = new TournamentNode<T>(winner);
-    } else {
-        insertHelper(node->m_left, winner, currDepth + 1);
-        insertHelper(node->m_right, winner, currDepth + 1);
-    }
-}
-
-/*
 method that generates an empty tournament tree with a given number of leaf nodes
 if the number of  leaf nodes is odd, it decrements the number of leaf nodes by 1
 creates a queue of nodes and pushes the root node onto the queue
 continuously pops nodes off the queue and creates left and right children for each node
 */
 template <typename T>
-void TournamentTree<T>::generateEmptyTree(int numLeafNodes){
+void TournamentTree<T>::generateTree(int numLeafNodes, std::vector<Monster*> v){
 
     m_leafNodes = numLeafNodes;
-
-    //check to see if there is an even number of leaf nodes
-    //if there is an odd number of leaf nodes decrement the number of leaf nodes by 1
-    if (numLeafNodes % 2 != 0){
-        numLeafNodes--;
-    }
+    monsterVector = v;
 
     std::queue<TournamentNode<T>*> q; //queue of tournament nodes
     
@@ -126,16 +95,55 @@ void TournamentTree<T>::generateEmptyTree(int numLeafNodes){
     
     q.push(m_root); //push the root node onto the queue
     
-    int i = 1;  //counter
-    while (i < ((numLeafNodes * 2) - 1)){
+    m_size = 1;  //counter
+    int nonLeafNodeCount = ((numLeafNodes * 2) - 1);
+    int startingLeafParent = pow(2, floor(log2(numLeafNodes - 0.001)));
+    int i = 0;
+
+    //empty monster for bottom nodes if there is an odd number
+    Monster* empty = new Monster("", 0);
+
+    while (m_size <= nonLeafNodeCount){
         //get the node in the front of the queue
+
+        /*
+        if statement to find when to start inserting nodes into the tree
+        the node to start adding is when 2 to the power of (floor (log base 2(m_numLeafNodes - 0.001))) 
+        */
+        if (m_size == 2 * startingLeafParent - 1){
+            while (i < monsterVector.size()){
+                TournamentNode<T>* node = q.front();
+                //pop the node off the queue
+                q.pop();
+                //create a left child
+                TournamentNode<T>* left = new TournamentNode<T>(monsterVector[i]);
+                i++;
+                //create a right child
+                TournamentNode<T>* right = new TournamentNode<T>(empty);
+                if (i < monsterVector.size()){
+                    right->m_winner = monsterVector[i];
+                    i++;
+                }
+                
+                //set the left child of the node to the left child
+                node->m_left = left;
+                //set the right child of the node to the right child
+                node->m_right = right;
+                //push the left child onto the queue
+                q.push(left);
+                //push the right child onto the queue
+                q.push(right);
+            }
+            break;
+       }
+
         TournamentNode<T>* node = q.front();
         //pop the node off the queue
         q.pop();
         //create a left child
-        TournamentNode<T>* left = new TournamentNode<T>(NULL);
+        TournamentNode<T>* left = new TournamentNode<T>(empty);
         //create a right child
-        TournamentNode<T>* right = new TournamentNode<T>(NULL);
+        TournamentNode<T>* right = new TournamentNode<T>(empty);
         //set the left child of the node to the left child
         node->m_left = left;
         //set the right child of the node to the right child
@@ -144,9 +152,11 @@ void TournamentTree<T>::generateEmptyTree(int numLeafNodes){
         q.push(left);
         //push the right child onto the queue
         q.push(right);
-        i+=2;   //increment the counter by 2 since there was 2 children created
+        m_size+=2;   //increment the counter by 2 since there was 2 children created
     }
 }
+
+
 
 
 /*
@@ -203,16 +213,16 @@ the winner is then printed to the output file in the form of a dot file
 template <typename T>
 void TournamentTree<T>::singleElimination(std::string inputFile, std::string outputFile){
     //read in the input file
-    std::ifstream input(inputFile);
-    std::ofstream output(outputFile);
-    TournamentTree<T>* tree = new TournamentTree<T>();
-    tree->generateEmptyTree(m_leafNodes);
-
+    std::ifstream inFile(inputFile);
+    
+    // TournamentTree<T>* tree = new TournamentTree<T>();
+    // tree->generateEmptyTree(m_leafNodes);
+    m_leafNodes = 0;
 
     //fills tree with monsters based off of input file
-    if (input.is_open()){
+    if (inFile.is_open()){
         std::string line;
-        while (getline(input, line)){
+        while (getline(inFile, line)){
             std::string monsterName;
             int powerLevel;
             for (int i = 0; i < line.length(); i++){
@@ -227,12 +237,16 @@ void TournamentTree<T>::singleElimination(std::string inputFile, std::string out
             Monster* monster = new Monster;
             monster->m_name = monsterName;
             monster->m_powerLevel = powerLevel;
-            tree->insert(monster);
+            monsterVector.push_back(monster);
+            m_leafNodes++;
         }
         
     } else {
         std::cout << "Unable to open file" << inputFile << std::endl;
     }
+
+    TournamentTree<T>* tree = new TournamentTree<T>();
+    tree->generateTree(m_leafNodes, monsterVector);
 
     matchHelper(tree->m_root);
 
@@ -240,9 +254,9 @@ void TournamentTree<T>::singleElimination(std::string inputFile, std::string out
     saveTreeAsDot(outputFile, tree->m_root);
 
 
-    input.close();
+    inFile.close();
 
-
+    delete tree;
 }
 
 /*
@@ -250,6 +264,8 @@ method to help simulate the matches and determine the winner
 takes in a tournament node and recursively calls itself on the left and right children until it reaches a leaf node
 then it compares the power levels of the two monsters and determines the winner
 the winner is then set as the winner of the node
+
+If a monster is going against a NULL node it automatically wins
 */
 template <typename T>
 void TournamentTree<T>::matchHelper(TournamentNode<T>* node){
@@ -263,29 +279,33 @@ void TournamentTree<T>::matchHelper(TournamentNode<T>* node){
         matchHelper(node->m_right);
         Monster* winner1 = node->m_left->m_winner;
         Monster* winner2 = node->m_right->m_winner;
+
+        
         Monster* winningMonster = (winner1->m_powerLevel > winner2->m_powerLevel) ? winner1 : winner2;
+        Monster* losingMonster = (winner1->m_powerLevel < winner2->m_powerLevel) ? winner1 : winner2;
         node->m_winner = winningMonster;
+        losingMonsters.push_back(losingMonster);
+
     }
 }
 
 template <typename T>
 void TournamentTree<T>::doubleElimination(std::string inputFile, std::string outputFile){
     //read in the input file
-    std::ifstream input(inputFile);
-    std::ofstream output(outputFile);
-    TournamentTree<T>* winnersBracket = new TournamentTree<T>();
-    TournamentTree<T>* losersBracket = new TournamentTree<T>();
-    winnersBracket->generateEmptyTree(m_leafNodes);
-    losersBracket->generateEmptyTree(m_leafNodes-1);
+    std::ifstream inFile(inputFile);
+    std::ofstream outFile(outputFile);
+    //winnersBracket->generateTree(m_leafNodes);
+    //losersBracket->generateTree(m_leafNodes-1);
 
-    if (input.is_open()){
+     //fills tree with monsters based off of input file
+    if (inFile.is_open()){
         std::string line;
-        while (getline(input, line)){
+        while (getline(inFile, line)){
             std::string monsterName;
             int powerLevel;
             for (int i = 0; i < line.length(); i++){
                 if (line[i] == ','){
-                    std::string  powerLevelString = line.substr(i+1, line.length());
+                    std::string  powerLevelString = line.substr(i+2, line.length());
                     powerLevel = stoi(powerLevelString);
                     break;
                 }
@@ -295,14 +315,36 @@ void TournamentTree<T>::doubleElimination(std::string inputFile, std::string out
             Monster* monster = new Monster;
             monster->m_name = monsterName;
             monster->m_powerLevel = powerLevel;
-            winnersBracket->insert(monster);
+            monsterVector.push_back(monster);
+            m_leafNodes++;
         }
         
     } else {
         std::cout << "Unable to open file" << inputFile << std::endl;
     }
 
-    input.close();
+    TournamentTree<T>* tree = new TournamentTree<T>();
+    tree->generateTree(m_leafNodes, monsterVector);
+
+    matchHelper(tree->m_root);
+    
+    TournamentTree<T>* losingTree = new TournamentTree<T>();
+    losingTree->generateTree(m_leafNodes-1, losingMonsters);
+    matchHelper(losingTree->m_root);
+
+    TournamentNode<T>* finalMatch = new TournamentNode<T>(tree->m_root->m_winner);
+
+    finalMatch->m_left = tree->m_root;
+    finalMatch->m_right = losingTree->m_root;
+    tree->m_root = finalMatch;
+    
+
+    //save the tree as a dot file
+    saveTreeAsDot(outputFile, tree->m_root);
+
+    delete tree;
+
+    inFile.close();
 }
 
 
